@@ -1,9 +1,12 @@
 class EJS_GameManager {
     constructor(Module, EJS) {
+        
         this.EJS = EJS;
         this.Module = Module;
         this.FS = this.Module.FS;
         this.functions = {
+            reciveWsCmds: this.Module.cwrap('recive_ws_cmds', 'null', ['string',"number"]),
+            setCurrentUser: this.Module.cwrap('set_current_user', 'null', ['number']),
             restart: this.Module.cwrap('system_restart', '', []),
             saveStateInfo: this.Module.cwrap('save_state_info', 'string', []),
             loadState: this.Module.cwrap('load_state', 'number', ['string', 'number']),
@@ -31,6 +34,9 @@ class EJS_GameManager {
             getFrameNum: this.Module.cwrap('get_current_frame_count', 'number', ['']),
             setVSync: this.Module.cwrap('set_vsync', 'null', ['number']),
             setVideoRoation: this.Module.cwrap('set_video_rotation', 'null', ['number'])
+        }
+        if (window.openNetPlay){
+            this.functions.setCurrentUser(window.currentUser)//todo 
         }
         
         this.writeFile("/home/web_user/retroarch/userdata/retroarch.cfg", this.getRetroArchCfg());
