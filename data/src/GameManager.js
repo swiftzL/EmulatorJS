@@ -5,7 +5,8 @@ class EJS_GameManager {
         this.Module = Module;
         this.FS = this.Module.FS;
         this.functions = {
-            execFrame: this.Module.cwrap('exec_frame', 'null', []),
+            mainLoop: this.Module.cwrap('emscripten_mainloop', 'null', [],{async:true}),
+            execFrame: this.Module.cwrap('exec_frame', 'null', [],{async:true}),
             reciveWsCmds: this.Module.cwrap('reciveWsCmds', 'null', ['number',"number"]),
             setCurrentUser: this.Module.cwrap('set_current_user', 'null', ['number']),
             restart: this.Module.cwrap('system_restart', '', []),

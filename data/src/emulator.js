@@ -980,21 +980,21 @@ class EmulatorJS {
 
             ws.onmessage = function (event) {
                 if (event.data instanceof ArrayBuffer) {
-                        // 使用 C 函数分配内存
-                        const uint8Array = new Uint8Array(event.data);
-                        const bufferPtr = emulatorIns.Module._malloc(uint8Array.byteLength);
-                        if(!bufferPtr){
-                            console.log('内存分配失败');
-                            return;
-                        }
-                        emulatorIns.Module.HEAPU8.set(uint8Array, bufferPtr);
-                        // 处理数据
-                        console.log('字节总和: arraybuffer', uint8Array.byteLength,uint8Array);
-                        emulatorIns.gameManager.functions.reciveWsCmds(bufferPtr, uint8Array.byteLength);
-                        if (window.currentUser != 0) {
-                            emulatorIns.gameManager.functions.execFrame();
-                        }
-                        emulatorIns.Module._free(bufferPtr);
+                    // 使用 C 函数分配内存
+                    const uint8Array = new Uint8Array(event.data);
+                    const bufferPtr = emulatorIns.Module._malloc(uint8Array.byteLength);
+                    if (!bufferPtr) {
+                        console.log('内存分配失败');
+                        return;
+                    }
+                    emulatorIns.Module.HEAPU8.set(uint8Array, bufferPtr);
+                    // 处理数据
+                    console.log('字节总和: arraybuffer', uint8Array.byteLength, uint8Array);
+                    emulatorIns.gameManager.functions.reciveWsCmds(bufferPtr, uint8Array.byteLength);
+                    if (window.currentUser != 0) {
+                        emulatorIns.gameManager.functions.execFrame();
+                    }
+                    emulatorIns.Module._free(bufferPtr);
                 } else if (event.data instanceof Blob) {
                 } else {
                     console.log("other");
@@ -1003,15 +1003,20 @@ class EmulatorJS {
             };
         });
     }
+
     async startGame() {
         try {
             //init env
             //init websocket
             if (window.currentUser != undefined) {
                 this.gameManager.functions.setCurrentUser(window.currentUser);
-                const ws = await this.initWebSocket(this, "ws://127.0.0.1:8082/ws/2?username=" + window.currentUser + "&falg=1");
+                // const ws = await this.initWebSocket(this, "ws://192.168.8.10:8085/ws/2?username=" + window.currentUser + "&falg=1");
+                const ws = await this.initWebSocket(this, "ws://170.106.189.178:8088/ws/2?username=" + window.currentUser + "&falg=1");
                 this.ws = ws
                 //wait 1000ms
+                // window.mainLoop = this.gameManager.functions.mainLoop;
+                // window.customMainLoop = this.customMainLoop;
+                // requestAnimationFrame(this.customMainLoop);
             }
             const args = [];
             if (this.debug) args.push('-v');
@@ -1023,9 +1028,7 @@ class EmulatorJS {
                     this.gameManager.restart();
                 }, this.config.softLoad * 1000);
             }
-            if (window.currentUser == 0) {
-                this.Module.resumeMainLoop();
-            }
+            this.Module.resumeMainLoop();
             this.checkSupportedOpts();
             this.setupDisksMenu();
             // hide the disks menu if the disk count is not greater than 1
