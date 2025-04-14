@@ -954,6 +954,7 @@ class EmulatorJS {
         });
     }
 
+
     initWebSocket(emulatorIns, url) {
         //init websocket
         return new Promise((resolve, reject) => {
@@ -989,14 +990,20 @@ class EmulatorJS {
                     }
                     emulatorIns.Module.HEAPU8.set(uint8Array, bufferPtr);
                     // 处理数据
-                    console.log('字节总和: arraybuffer', uint8Array.byteLength, uint8Array);
-                    emulatorIns.gameManager.functions.reciveWsCmds(bufferPtr, uint8Array.byteLength);
-                    if (window.currentUser != 0) {
-                        emulatorIns.gameManager.functions.execFrame();
+                    // console.log('字节总和: arraybuffer', uint8Array.byteLength, uint8Array);
+                    if (uint8Array.byteLength < 16) {
+                        emulatorIns.gameManager.functions.onWsCmd(bufferPtr, uint8Array.byteLength);
+                    } else {
+                        emulatorIns.gameManager.functions.reciveWsCmds(bufferPtr, uint8Array.byteLength);
+                        if (window.currentUser != 0) {
+                            emulatorIns.gameManager.functions.execFrame();
+                        }
                     }
                     emulatorIns.Module._free(bufferPtr);
                 } else if (event.data instanceof Blob) {
+
                 } else {
+
                     console.log("other");
                     console.log(event.data);
                 }
@@ -1004,19 +1011,38 @@ class EmulatorJS {
         });
     }
 
+    async syncGame() {
+        const blob = await this.createStateData();
+        const buffer = new ArrayBuffer(4);
+        const view = new Uint8Array(buffer);
+        view.set([1, 0, 0, 0]); // 或逐个赋值 view[0] = 1; ...
+        // 发送ArrayBuffer
+        this.ws.send(buffer);
+    }
+
+    async createStateData() {
+        const file = await this.gameManager.getSaveFile();
+        const called = this.callEvent("saveSave", {
+            screenshot: await this.gameManager.screenshot(),
+            save: file
+        });
+        if (called > 0) return;
+        const blob = new Blob([file]);
+        return blob;
+    }
     async startGame() {
         try {
             //init env
             //init websocket
             if (window.currentUser != undefined) {
                 this.gameManager.functions.setCurrentUser(window.currentUser);
-                // const ws = await this.initWebSocket(this, "ws://192.168.8.10:8085/ws/2?username=" + window.currentUser + "&falg=1");
-                const ws = await this.initWebSocket(this, "ws://170.106.189.178:8088/ws/2?username=" + window.currentUser + "&falg=1");
+                const ws = await this.initWebSocket(this, "ws://127.0.0.1:8082/ws/2?username=" + window.currentUser + "&falg=1");
+                // const ws = await this.initWebSocket(this, "ws://170.106.189.178:8088/ws/2?username=" + window.currentUser + "&falg=1");
                 this.ws = ws
-                //wait 1000ms
-                // window.mainLoop = this.gameManager.functions.mainLoop;
-                // window.customMainLoop = this.customMainLoop;
-                // requestAnimationFrame(this.customMainLoop);
+                if (window.currentUser != 0) {
+                    this.syncGame();
+                }
+
             }
             const args = [];
             if (this.debug) args.push('-v');
@@ -1028,7 +1054,9 @@ class EmulatorJS {
                     this.gameManager.restart();
                 }, this.config.softLoad * 1000);
             }
-            this.Module.resumeMainLoop();
+            if (window.currentUser <= 0) {
+                this.Module.resumeMainLoop();
+            }
             this.checkSupportedOpts();
             this.setupDisksMenu();
             // hide the disks menu if the disk count is not greater than 1

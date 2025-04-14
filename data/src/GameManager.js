@@ -5,6 +5,7 @@ class EJS_GameManager {
         this.Module = Module;
         this.FS = this.Module.FS;
         this.functions = {
+            onWsCmd: this.Module.cwrap('on_ws_cmd', 'null', ['number','number']),
             mainLoop: this.Module.cwrap('emscripten_mainloop', 'null', [],{async:true}),
             execFrame: this.Module.cwrap('exec_frame', 'null', [],{async:true}),
             reciveWsCmds: this.Module.cwrap('reciveWsCmds', 'null', ['number',"number"]),
