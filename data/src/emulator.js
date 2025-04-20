@@ -1162,7 +1162,7 @@ class EmulatorJS {
             return;
         }
         this.callEvent("start");
-        if (window.currentUser != 0) {
+        if (window.currentUser != undefined && window.currentUser != 0) {
             this.reqSyncGame();
         }
     }
