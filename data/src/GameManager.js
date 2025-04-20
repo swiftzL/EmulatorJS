@@ -5,6 +5,8 @@ class EJS_GameManager {
         this.Module = Module;
         this.FS = this.Module.FS;
         this.functions = {
+            execNopFrame: this.Module.cwrap('exec_nop_frame', 'null', []),
+            setFrameNum: this.Module.cwrap('set_emscripten_frame_count', 'null', ['number']),
             onWsCmd: this.Module.cwrap('on_ws_cmd', 'null', ['number','number']),
             mainLoop: this.Module.cwrap('emscripten_mainloop', 'null', [],{async:true}),
             execFrame: this.Module.cwrap('exec_frame', 'null', [],{async:true}),
@@ -198,7 +200,9 @@ class EJS_GameManager {
         } catch(e){}
         this.FS.writeFile('/game.state', state);
         this.clearEJSResetTimer();
-        this.functions.loadState("game.state", 0);
+        const res = this.functions.loadState("game.state", 0);
+        console.log("loadState....", res);
+        console.log("loadState....", state);
         setTimeout(() => {
             try {
                 this.FS.unlink('game.state');

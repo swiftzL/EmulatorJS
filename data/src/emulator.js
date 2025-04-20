@@ -200,6 +200,8 @@ class EmulatorJS {
         return parseInt(rv.join(""));
     }
     constructor(element, config) {
+        this.messageQueue = [];
+        this.isProcessing = false;
         this.ejs_version = "4.2.1";
         this.extensions = [];
         this.initControlVars();
@@ -991,12 +993,17 @@ class EmulatorJS {
                     emulatorIns.Module.HEAPU8.set(uint8Array, bufferPtr);
                     // 处理数据
                     // console.log('字节总和: arraybuffer', uint8Array.byteLength, uint8Array);
-                    if (uint8Array.byteLength < 16) {
-                        emulatorIns.gameManager.functions.onWsCmd(bufferPtr, uint8Array.byteLength);
+                    if (uint8Array.byteLength != 16) {
+                        if (uint8Array[0] == 1) {
+                            emulatorIns.syncGame(event.data);
+                        } else if (uint8Array[0] == 2) {
+                            emulatorIns.recoverGameFps(event.data);
+                        }
                     } else {
                         emulatorIns.gameManager.functions.reciveWsCmds(bufferPtr, uint8Array.byteLength);
                         if (window.currentUser != 0) {
-                            emulatorIns.gameManager.functions.execFrame();
+                            emulatorIns.messageQueue.push(event.data);
+                            emulatorIns.processNextMessage();
                         }
                     }
                     emulatorIns.Module._free(bufferPtr);
@@ -1010,14 +1017,37 @@ class EmulatorJS {
             };
         });
     }
+    async recoverGameFps(buffer) {
+        const dataView = new DataView(buffer, 4);
+        const frameNum = dataView.getUint32(0, false);
+        console.log("recover frameNum", frameNum);
+        this.gameManager.functions.setFrameNum(frameNum - 1);
+        //reload 
+        const blob = new Uint8Array(buffer, 8);
+        console.log("blob", blob);
+        this.gameManager.loadState(blob);
+        //exec frame
+        this.gameManager.functions.execNopFrame();
+    }
 
     async syncGame() {
-        const blob = await this.createStateData();
-        const buffer = new ArrayBuffer(4);
-        const view = new Uint8Array(buffer);
-        view.set([1, 0, 0, 0]); // 或逐个赋值 view[0] = 1; ...
+        const state = this.gameManager.getState();
+        const buffer = new ArrayBuffer(8 + state.byteLength);
+        console.log("buffsize is ", buffer.byteLength);
+        const view = new Uint8Array(buffer, 0, 4);
+        view.set([2, 0, 0, 0]); // 或逐个赋值 view[0] = 1; ...
+        const dataView = new DataView(buffer, 4, 8);
+        const frameNum = this.gameManager.functions.getFrameNum();
+        console.log("frameNum", frameNum);
+        dataView.setUint32(0, frameNum, false);
+        const blobView = new Uint8Array(buffer, 8);
+        blobView.set(state);
         // 发送ArrayBuffer
+        console.log("send buffer", buffer);
         this.ws.send(buffer);
+    }
+    async reqSyncGame() {
+        this.ws.send(new Uint8Array([1, 0, 0, 0]));
     }
 
     async createStateData() {
@@ -1030,19 +1060,52 @@ class EmulatorJS {
         const blob = new Blob([file]);
         return blob;
     }
+
+
+    // 处理队列中的下一个消息
+    async processNextMessage() {
+        if (this.messageQueue.length === 0 || this.isProcessing) {
+            return;
+        }
+
+        this.isProcessing = true;
+        const message = this.messageQueue.shift();
+
+        try {
+            // 假设这是原来的处理逻辑
+            await this.processWebSocketMessage(message);
+        } catch (error) {
+            console.error("Error processing message:", error);
+        } finally {
+            this.isProcessing = false;
+            // 继续处理队列中的下一个消息
+            this.processNextMessage();
+        }
+    }
+    // 异步处理一个消息的函数
+    async processWebSocketMessage(data) {
+        // 这里替换为您原有的 execFrame 调用逻辑
+        // 如果 execFrame 是同步的，可能需要将其包装在 Promise 中
+        return new Promise((resolve, reject) => {
+            try {
+                // 确保以同步方式调用 execFrame
+                const result = this.gameManager.functions.execFrame();
+                resolve(result);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
     async startGame() {
         try {
             //init env
             //init websocket
             if (window.currentUser != undefined) {
                 this.gameManager.functions.setCurrentUser(window.currentUser);
-                const ws = await this.initWebSocket(this, "ws://127.0.0.1:8082/ws/2?username=" + window.currentUser + "&falg=1");
+                // const ws = await this.initWebSocket(this, "ws://127.0.0.1:8082/ws/2?username=" + window.currentUser + "&falg=1");
                 // const ws = await this.initWebSocket(this, "ws://170.106.189.178:8088/ws/2?username=" + window.currentUser + "&falg=1");
+                const ws = await this.initWebSocket(this, "ws://swiftr.top:8088/ws/2?username=" + window.currentUser + "&falg=1");
                 this.ws = ws
-                if (window.currentUser != 0) {
-                    this.syncGame();
-                }
-
             }
             const args = [];
             if (this.debug) args.push('-v');
@@ -1099,6 +1162,9 @@ class EmulatorJS {
             return;
         }
         this.callEvent("start");
+        if (window.currentUser != 0) {
+            this.reqSyncGame();
+        }
     }
     checkStarted() {
         (async () => {
