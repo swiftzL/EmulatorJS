@@ -978,7 +978,9 @@ class EmulatorJS {
             };
 
             window.sendFrameData = function (data) {
-                ws.send(data);
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(data);
+                }
             }
 
             ws.onmessage = function (event) {
@@ -1104,7 +1106,7 @@ class EmulatorJS {
                 this.gameManager.functions.setCurrentUser(window.currentUser);
                 // const ws = await this.initWebSocket(this, "ws://127.0.0.1:8082/ws/2?username=" + window.currentUser + "&falg=1");
                 // const ws = await this.initWebSocket(this, "ws://170.106.189.178:8088/ws/2?username=" + window.currentUser + "&falg=1");
-                const ws = await this.initWebSocket(this, "ws://swiftr.top:8088/ws/2?username=" + window.currentUser + "&falg=1");
+                const ws = await this.initWebSocket(this, window.wsUrl);
                 this.ws = ws
             }
             const args = [];
