@@ -1012,9 +1012,14 @@ class EmulatorJS {
                 } else if (event.data instanceof Blob) {
 
                 } else {
-
-                    console.log("other");
-                    console.log(event.data);
+                    const str = event.data;
+                    const json = JSON.parse(str);
+                    console.log("json", json);//todo remove
+                    if (json.type == "msg") {
+                        if (window.onWsMessage != undefined) {
+                            window.onWsMessage(json.msg);
+                        }
+                    }
                 }
             };
         });
@@ -1022,11 +1027,9 @@ class EmulatorJS {
     async recoverGameFps(buffer) {
         const dataView = new DataView(buffer, 4);
         const frameNum = dataView.getUint32(0, false);
-        console.log("recover frameNum", frameNum);
-        this.gameManager.functions.setFrameNum(frameNum - 1);
         //reload 
         const blob = new Uint8Array(buffer, 8);
-        console.log("blob", blob);
+        // console.log("blob", blob);
         this.gameManager.loadState(blob);
         //exec frame
         this.gameManager.functions.execNopFrame();
@@ -1035,17 +1038,17 @@ class EmulatorJS {
     async syncGame() {
         const state = this.gameManager.getState();
         const buffer = new ArrayBuffer(8 + state.byteLength);
-        console.log("buffsize is ", buffer.byteLength);
+        // console.log("buffsize is ", buffer.byteLength);
         const view = new Uint8Array(buffer, 0, 4);
         view.set([2, 0, 0, 0]); // 或逐个赋值 view[0] = 1; ...
         const dataView = new DataView(buffer, 4, 8);
         const frameNum = this.gameManager.functions.getFrameNum();
-        console.log("frameNum", frameNum);
+        // console.log("frameNum", frameNum);
         dataView.setUint32(0, frameNum, false);
         const blobView = new Uint8Array(buffer, 8);
         blobView.set(state);
         // 发送ArrayBuffer
-        console.log("send buffer", buffer);
+        // console.log("send buffer", buffer);
         this.ws.send(buffer);
     }
     async reqSyncGame() {
