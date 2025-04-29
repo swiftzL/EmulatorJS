@@ -3639,84 +3639,89 @@ class EmulatorJS {
         const createDPad = (opts) => {
             const container = opts.container;
             const callback = opts.event;
+            
+            // Create a container for the joystick
             const dpadMain = this.createElement("div");
             dpadMain.classList.add("ejs_dpad_main");
-            const vertical = this.createElement("div");
-            vertical.classList.add("ejs_dpad_vertical");
-            const horizontal = this.createElement("div");
-            horizontal.classList.add("ejs_dpad_horizontal");
-            const bar1 = this.createElement("div");
-            bar1.classList.add("ejs_dpad_bar");
-            const bar2 = this.createElement("div");
-            bar2.classList.add("ejs_dpad_bar");
-
-            horizontal.appendChild(bar1);
-            vertical.appendChild(bar2);
-            dpadMain.appendChild(vertical);
-            dpadMain.appendChild(horizontal);
-
-            const updateCb = (e) => {
-                e.preventDefault();
-                const touch = e.targetTouches[0];
-                if (!touch) return;
-                const rect = dpadMain.getBoundingClientRect();
-                const x = touch.clientX - rect.left - dpadMain.clientWidth / 2;
-                const y = touch.clientY - rect.top - dpadMain.clientHeight / 2;
-                let up = 0,
-                    down = 0,
-                    left = 0,
-                    right = 0,
-                    angle = Math.atan(x / y) / (Math.PI / 180);
-
-                if (y <= -10) {
-                    up = 1;
-                }
-                if (y >= 10) {
-                    down = 1;
-                }
-
-                if (x >= 10) {
-                    right = 1;
-                    left = 0;
-                    if (angle < 0 && angle >= -35 || angle > 0 && angle <= 35) {
-                        right = 0;
-                    }
-                    up = (angle < 0 && angle >= -55 ? 1 : 0);
-                    down = (angle > 0 && angle <= 55 ? 1 : 0);
-                }
-
-                if (x <= -10) {
-                    right = 0;
-                    left = 1;
-                    if (angle < 0 && angle >= -35 || angle > 0 && angle <= 35) {
-                        left = 0;
-                    }
-                    up = (angle > 0 && angle <= 55 ? 1 : 0);
-                    down = (angle < 0 && angle >= -55 ? 1 : 0);
-                }
-
-                dpadMain.classList.toggle("ejs_dpad_up_pressed", up);
-                dpadMain.classList.toggle("ejs_dpad_down_pressed", down);
-                dpadMain.classList.toggle("ejs_dpad_right_pressed", right);
-                dpadMain.classList.toggle("ejs_dpad_left_pressed", left);
-
-                callback(up, down, left, right);
-            }
-            const cancelCb = (e) => {
-                e.preventDefault();
+            dpadMain.classList.add("ejs_dpad_joystick");
+            
+            // Add the joystick to the container
+            container.appendChild(dpadMain);
+            
+            // Create the joystick using nipplejs
+            const joystick = nipplejs.create({
+                'zone': dpadMain,
+                'mode': 'static',
+                'position': {
+                    'left': '50%',
+                    'top': '50%'
+                },
+                'color': 'white',
+                'size': 100,
+                'lockX': false,
+                'lockY': false
+            });
+            
+            // Handle joystick events
+            joystick.on('end', () => {
+                // Reset all directions when touch ends
                 dpadMain.classList.remove("ejs_dpad_up_pressed");
                 dpadMain.classList.remove("ejs_dpad_down_pressed");
                 dpadMain.classList.remove("ejs_dpad_right_pressed");
                 dpadMain.classList.remove("ejs_dpad_left_pressed");
-
                 callback(0, 0, 0, 0);
-            }
-
-            this.addEventListener(dpadMain, 'touchstart touchmove', updateCb);
-            this.addEventListener(dpadMain, 'touchend touchcancel', cancelCb);
-
-
-            container.appendChild(dpadMain);
+            });
+            
+            joystick.on('move', (e, info) => {
+                const degree = info.angle.degree;
+                const distance = info.distance;
+                const force = Math.min(1, distance / 50);
+                
+                let up = 0, down = 0, left = 0, right = 0;
+                
+                // Determine direction based on angle
+                if (degree >= 0 && degree < 45 || degree >= 315 && degree <= 360) {
+                    // Right
+                    right = 1;
+                } else if (degree >= 45 && degree < 135) {
+                    // Up
+                    up = 1;
+                } else if (degree >= 135 && degree < 225) {
+                    // Left
+                    left = 1;
+                } else if (degree >= 225 && degree < 315) {
+                    // Down
+                    down = 1;
+                }
+                
+                // Add diagonal directions
+                if (degree >= 22.5 && degree < 67.5) {
+                    // Up-right
+                    up = 1;
+                    right = 1;
+                } else if (degree >= 112.5 && degree < 157.5) {
+                    // Up-left
+                    up = 1;
+                    left = 1;
+                } else if (degree >= 202.5 && degree < 247.5) {
+                    // Down-left
+                    down = 1;
+                    left = 1;
+                } else if (degree >= 292.5 && degree < 337.5) {
+                    // Down-right
+                    down = 1;
+                    right = 1;
+                }
+                
+                // Update UI classes for visual feedback
+                dpadMain.classList.toggle("ejs_dpad_up_pressed", up);
+                dpadMain.classList.toggle("ejs_dpad_down_pressed", down);
+                dpadMain.classList.toggle("ejs_dpad_right_pressed", right);
+                dpadMain.classList.toggle("ejs_dpad_left_pressed", left);
+                
+                // Call the callback with the new direction values
+                callback(up, down, left, right);
+            });
         }
 
         info.forEach((dpad, index) => {
@@ -3890,9 +3895,22 @@ class EmulatorJS {
             const menuButton = this.createElement("div");
             menuButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M0 96C0 78.33 14.33 64 32 64H416C433.7 64 448 78.33 448 96C448 113.7 433.7 128 416 128H32C14.33 128 0 113.7 0 96zM0 256C0 238.3 14.33 224 32 224H416C433.7 224 448 238.3 448 256C448 273.7 433.7 288 416 288H32C14.33 288 0 273.7 0 256zM416 448H32C14.33 448 0 433.7 0 416C0 398.3 14.33 384 32 384H416C433.7 384 448 398.3 448 416C448 433.7 433.7 448 416 448z"/></svg>';
             menuButton.classList.add("ejs_virtualGamepad_open");
+            
+            // 设置样式确保按钮显示在右上角
             menuButton.style.display = "none";
-            this.on("start", () => menuButton.style.display = "");
+            menuButton.style.position = "absolute";
+            menuButton.style.top = "5px";
+            menuButton.style.right = "5px";
+            menuButton.style.zIndex = "9999";
+            
+            // 确保添加到父元素
             this.elements.parent.appendChild(menuButton);
+            
+            // 游戏开始后显示按钮
+            this.on("start", () => {
+                menuButton.style.display = "block";
+            });
+            
             let timeout;
             let ready = true;
             this.addEventListener(menuButton, "touchstart touchend mousedown mouseup click", (e) => {
@@ -3900,11 +3918,12 @@ class EmulatorJS {
                 clearTimeout(timeout);
                 timeout = setTimeout(() => {
                     ready = true;
-                }, 2000)
+                }, 2000);
                 ready = false;
                 e.preventDefault();
                 this.menu.toggle();
-            })
+            });
+            
             this.elements.menuToggle = menuButton;
         }
 
