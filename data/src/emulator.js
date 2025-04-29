@@ -1027,6 +1027,7 @@ class EmulatorJS {
     async recoverGameFps(buffer) {
         const dataView = new DataView(buffer, 4);
         const frameNum = dataView.getUint32(0, false);
+        this.gameManager.functions.setFrameNum(frameNum - 1);
         //reload 
         const blob = new Uint8Array(buffer, 8);
         // console.log("blob", blob);
