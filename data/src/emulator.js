@@ -3551,9 +3551,22 @@ class EmulatorJS {
             }
         }
         info = JSON.parse(JSON.stringify(info));
+        this.originalGamepadInfo = JSON.parse(JSON.stringify(info));
 
+        this.renderVirtualGamepad = () => {
+            this.virtualGamepad.innerHTML = '';
+            let info = JSON.parse(JSON.stringify(this.originalGamepadInfo));
 
-        const up = this.createElement("div");
+            const vMode = localStorage.getItem('EJS_VirtualControlMode');
+            if (vMode === 'dpad_buttons') {
+                for (let i = 0; i < info.length; i++) {
+                    if ((info[i].type === 'zone' && info[i].joystickInput === false) || info[i].type === 'dpad') {
+                        info[i].type = 'buttons_dpad';
+                    }
+                }
+            }
+
+            const up = this.createElement("div");
         up.classList.add("ejs_virtualGamepad_top");
         const down = this.createElement("div");
         down.classList.add("ejs_virtualGamepad_bottom");
@@ -3648,20 +3661,38 @@ class EmulatorJS {
             // Add the joystick to the container
             container.appendChild(dpadMain);
             
-            // Create the joystick using nipplejs
-            const joystick = nipplejs.create({
-                'zone': dpadMain,
-                'mode': 'static',
-                'position': {
-                    'left': '50%',
-                    'top': '50%'
-                },
-                'color': 'white',
-                'size': 100,
-                'lockX': false,
-                'lockY': false
-            });
+                            // Create the joystick using nipplejs
+                            let nippleOptions = {
+                                'zone': dpadMain,
+                                'mode': 'static',
+                                'position': {
+                                    'left': '50%',
+                                    'top': '50%'
+                                },
+                                'color': 'white',
+                                'size': 100,
+                                'lockX': false,
+                                'lockY': false
+                            };
             
+                            if (vMode === 'dynamic') {
+                                 dpadMain.style.position = 'fixed';
+                                 dpadMain.style.left = '0';
+                                 dpadMain.style.bottom = '0';
+                                 dpadMain.style.width = '50%';
+                                 dpadMain.style.height = '100%';
+                                 dpadMain.style.zIndex = '10'; 
+                                 dpadMain.style.transform = 'none'; // reset transform from css if any
+                                 dpadMain.style.borderRadius = '0';
+                                 dpadMain.style.backgroundColor = 'transparent';
+                                 dpadMain.style.border = 'none';
+                                 dpadMain.style.boxShadow = 'none';
+                                 
+                                 nippleOptions.mode = 'dynamic';
+                                 delete nippleOptions.position;
+                            }
+            
+                            const joystick = nipplejs.create(nippleOptions);            
             // Handle joystick events
             joystick.on('end', () => {
                 // Reset all directions when touch ends
@@ -3770,6 +3801,67 @@ class EmulatorJS {
         })
 
 
+        info.forEach((item, index) => {
+            if (item.type !== 'buttons_dpad') return;
+            
+            if (leftHandedMode && ['left', 'right'].includes(item.location)) {
+                item.location = (item.location === 'left') ? 'right' : 'left';
+                const amnt = JSON.parse(JSON.stringify(item));
+                if (amnt.left) {
+                    item.right = amnt.left;
+                }
+                if (amnt.right) {
+                    item.left = amnt.right;
+                }
+            }
+            
+            const elem = this.createElement("div");
+            // Apply positioning styles from item
+            let style = '';
+             if (item.left) {
+                style += 'left:' + item.left + (typeof item.left === 'number' ? 'px' : '') + ';';
+            }
+            if (item.right) {
+                style += 'right:' + item.right + (typeof item.right === 'number' ? 'px' : '') + ';';
+            }
+            if (item.top) {
+                style += 'top:' + item.top + (typeof item.top === 'number' ? 'px' : '') + ';';
+            }
+            elem.style = style;
+            elem.classList.add(controlSchemeCls);
+            elem.classList.add('ejs_dpad_buttons_container');
+            if (item.id) elem.classList.add(`b_${item.id}`);
+            
+            elems[item.location].appendChild(elem);
+            
+            const dirs = ['up', 'down', 'left', 'right'];
+            const inputIndices = [0, 1, 2, 3]; // up, down, left, right in inputValues
+            
+            dirs.forEach((dir, idx) => {
+                const btn = this.createElement("div");
+                btn.classList.add('ejs_dpad_btn', `ejs_dpad_btn_${dir}`);
+                elem.appendChild(btn);
+                
+                const inputIndex = inputIndices[idx];
+                const inputValue = item.inputValues[inputIndex];
+                
+                this.addEventListener(btn, "touchstart touchend touchcancel", (e) => {
+                    e.preventDefault();
+                    if (e.type === 'touchend' || e.type === 'touchcancel') {
+                        btn.classList.remove('ejs_dpad_btn_active');
+                        this.gameManager.simulateInput(0, inputValue, 0);
+                    } else {
+                        btn.classList.add('ejs_dpad_btn_active');
+                        this.gameManager.simulateInput(0, inputValue, 1);
+                    }
+                });
+            });
+        });
+        
+        }
+        this.renderVirtualGamepad();
+
+
         info.forEach((zone, index) => {
             if (zone.type !== 'zone') return;
             if (leftHandedMode && ['left', 'right'].includes(zone.location)) {
@@ -3787,20 +3879,34 @@ class EmulatorJS {
                 e.preventDefault();
             });
             elem.classList.add(controlSchemeCls);
-            if (zone.id) {
-                elem.classList.add(`b_${zone.id}`);
-            }
-            elems[zone.location].appendChild(elem);
-            const zoneObj = nipplejs.create({
-                'zone': elem,
-                'mode': 'static',
-                'position': {
-                    'left': zone.left,
-                    'top': zone.top
-                },
-                'color': zone.color || 'red'
-            });
-            zoneObj.on('end', () => {
+                            if (zone.id) {
+                                elem.classList.add(`b_${zone.id}`);
+                            }
+                            elems[zone.location].appendChild(elem);
+                            
+                            let nippleOptions = {
+                                'zone': elem,
+                                'mode': 'static',
+                                'position': {
+                                    'left': zone.left,
+                                    'top': zone.top
+                                },
+                                'color': zone.color || 'red'
+                            };
+            
+                            if (vMode === 'dynamic') {
+                                 elem.style.position = 'fixed';
+                                 elem.style.left = '0';
+                                 elem.style.bottom = '0';
+                                 elem.style.width = '50%';
+                                 elem.style.height = '100%';
+                                 elem.style.zIndex = '10'; 
+                                 
+                                 nippleOptions.mode = 'dynamic';
+                                 delete nippleOptions.position;
+                            }
+            
+                            const zoneObj = nipplejs.create(nippleOptions);            zoneObj.on('end', () => {
                 this.gameManager.simulateInput(0, zone.inputValues[0], 0);
                 this.gameManager.simulateInput(0, zone.inputValues[1], 0);
                 this.gameManager.simulateInput(0, zone.inputValues[2], 0);
@@ -3893,11 +3999,57 @@ class EmulatorJS {
 
         if (this.touch || navigator.maxTouchPoints > 0) {
             const menuButton = this.createElement("div");
-            menuButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M0 96C0 78.33 14.33 64 32 64H416C433.7 64 448 78.33 448 96C448 113.7 433.7 128 416 128H32C14.33 128 0 113.7 0 96zM0 256C0 238.3 14.33 224 32 224H416C433.7 224 448 238.3 448 256C448 273.7 433.7 288 416 288H32C14.33 288 0 273.7 0 256zM416 448H32C14.33 448 0 433.7 0 416C0 398.3 14.33 384 32 384H416C433.7 384 448 398.3 448 416C448 433.7 433.7 448 416 448z"/></svg>';
+            menuButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.6 273.1 64 264.6 64 256s.6-17.1 1.7-25.4L22.4 191.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z"/></svg>';
             menuButton.classList.add("ejs_virtualGamepad_open");
             
             // 设置样式确保按钮显示在右上角
-            menuButton.style.display = "none";
+            // menuButton.style.display = "none";
+            this.game.appendChild(menuButton);
+            this.addEventListener(menuButton, "click", (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                
+                let menu = this.game.querySelector('.ejs_ingame_menu');
+                if (!menu) {
+                    menu = this.createElement('div');
+                    menu.classList.add('ejs_ingame_menu');
+                    
+                    const item1 = this.createElement('div');
+                    item1.classList.add('ejs_menu_item');
+                    const updateLabel = () => {
+                        const mode = localStorage.getItem('EJS_VirtualControlMode') || 'joystick';
+                        let label = this.localization('Joystick (Fixed)');
+                        if (mode === 'dynamic') label = this.localization('Joystick (Dynamic)');
+                        if (mode === 'dpad_buttons') label = this.localization('Buttons (D-Pad)');
+                        item1.innerText = `${this.localization('Virtual Gamepad')}: ${label}`;
+                    };
+                    updateLabel();
+                    
+                    item1.onclick = () => {
+                        const currentMode = localStorage.getItem('EJS_VirtualControlMode') || 'joystick';
+                        let nextMode = 'dynamic';
+                        if (currentMode === 'dynamic') nextMode = 'dpad_buttons';
+                        if (currentMode === 'dpad_buttons') nextMode = 'joystick';
+                        
+                        localStorage.setItem('EJS_VirtualControlMode', nextMode);
+                        this.renderVirtualGamepad();
+                        updateLabel();
+                    };
+                    menu.appendChild(item1);
+                    
+                    const item2 = this.createElement('div');
+                    item2.classList.add('ejs_menu_item');
+                    item2.innerText = this.localization('Close');
+                    item2.onclick = () => {
+                        menu.classList.remove('active');
+                    };
+                    menu.appendChild(item2);
+                    
+                    this.game.appendChild(menu);
+                }
+                
+                menu.classList.toggle('active');
+            })
             menuButton.style.position = "absolute";
             menuButton.style.top = "5px";
             menuButton.style.right = "5px";
