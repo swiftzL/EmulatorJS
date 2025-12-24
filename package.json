@@ -1,6 +1,6 @@
 {
   "name": "@ttgame/emulatorjs",
-  "version": "4.2.5",
+  "version": "4.2.6",
   "repository": {
     "type": "git",
     "url": "https://github.com/EmulatorJS/EmulatorJS.git"
@@ -8,7 +8,7 @@
   "license": "GPL-3.0",
   "description": "EmulatorJS is a frontend for RetroArch in the web browser. https://jsdelivr.b-cdn.net/npm/@ttgame/emulatorjs@latest/",
   "scripts": {
-    "start": "http-server"
+    "start": "http-server --cors -p 8082"
   },
   "dependencies": {
     "http-server": "^14.1.1"
