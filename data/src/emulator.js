@@ -1160,6 +1160,7 @@ class EmulatorJS {
             if (this.isSafari && this.isMobile) {
                 //Safari is --- funny
                 this.checkStarted();
+                
             }
         } catch (e) {
             console.warn("Failed to start game", e);
@@ -3676,10 +3677,10 @@ class EmulatorJS {
                             };
             
                             if (vMode === 'dynamic') {
-                                 dpadMain.style.position = 'fixed';
+                                 dpadMain.style.position = 'absolute';
                                  dpadMain.style.left = '0';
                                  dpadMain.style.bottom = '0';
-                                 dpadMain.style.width = '50%';
+                                 dpadMain.style.width = '100%';
                                  dpadMain.style.height = '100%';
                                  dpadMain.style.zIndex = '10'; 
                                  dpadMain.style.transform = 'none'; // reset transform from css if any
@@ -5880,70 +5881,157 @@ window.EmulatorJS = EmulatorJS;
 window.EJS_selectSave = async function() {
     console.log("执行选择存档逻辑...");
     
-    // 创建一个简单的覆盖层和列表来模拟存档选择界面
+    // 1. 获取准确的挂载目标
+    const target = (window.EJS_emulator && window.EJS_emulator.elements && window.EJS_emulator.elements.parent) 
+                 || document.querySelector('.ejs_parent') 
+                 || document.body;
+
+    // 2. 创建 Overlay
     const overlay = document.createElement('div');
-    overlay.style.position = 'fixed';
+    overlay.className = 'ejs_select_save_overlay';
+    overlay.style.position = 'absolute';
     overlay.style.top = '0';
     overlay.style.left = '0';
     overlay.style.width = '100%';
     overlay.style.height = '100%';
     overlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
-    overlay.style.zIndex = '10000';
+    overlay.style.zIndex = '20000'; // 确保在最上层
     overlay.style.display = 'flex';
     overlay.style.justifyContent = 'center';
     overlay.style.alignItems = 'center';
     overlay.style.flexDirection = 'column';
     overlay.style.color = '#fff';
 
-    const title = document.createElement('h2');
-    title.innerText = '请选择存档';
-    title.style.marginBottom = '20px';
-    overlay.appendChild(title);
-
-    const list = document.createElement('ul');
-    list.style.listStyle = 'none';
-    list.style.padding = '0';
-    list.style.width = '300px';
-    list.style.backgroundColor = '#333';
-    list.style.borderRadius = '8px';
-    
-    // 模拟的存档数据
-    const saves = await window.EJS_getSelectSave();
-    saves.forEach(save => {
-        const item = document.createElement('li');
-        item.innerText = save.desc;
-        item.style.padding = '15px';
-        item.style.borderBottom = '1px solid #444';
-        item.style.cursor = 'pointer';
-        item.onmouseover = () => item.style.backgroundColor = '#555';
-        item.onmouseout = () => item.style.backgroundColor = '#333';
-        
-        item.onclick = async () => {
-            // 调用加载存档的外部函数，传入 ID
-            if (typeof window.EJS_loadSave === 'function') {
-                await window.EJS_loadSave(save.id);
-            } else {
-                console.warn('未找到 window.EJS_loadSave 函数');
+    // 注入动画样式（如果不存在）
+    if (!document.getElementById('ejs-select-save-style')) {
+        const style = document.createElement('style');
+        style.id = 'ejs-select-save-style';
+        style.innerHTML = `
+            @keyframes ejs-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
             }
-            // 关闭选择界面
-            document.body.removeChild(overlay);
-        };
-        list.appendChild(item);
-    });
+            .ejs-spinner {
+                border: 4px solid rgba(255, 255, 255, 0.3);
+                border-top: 4px solid #fff;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: ejs-spin 1s linear infinite;
+                margin-bottom: 15px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 
-    overlay.appendChild(list);
-
-    // 关闭按钮
-    const closeBtn = document.createElement('button');
-    closeBtn.innerText = '取消';
-    closeBtn.style.marginTop = '20px';
-    closeBtn.style.padding = '10px 20px';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.onclick = () => {
-        document.body.removeChild(overlay);
+    const createLoader = (text) => {
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.alignItems = 'center';
+        const spinner = document.createElement('div');
+        spinner.className = 'ejs-spinner';
+        const label = document.createElement('div');
+        label.innerText = text || '加载中...';
+        container.appendChild(spinner);
+        container.appendChild(label);
+        return container;
     };
-    overlay.appendChild(closeBtn);
 
-    document.body.appendChild(overlay);
+    const contentContainer = document.createElement('div');
+    contentContainer.style.display = 'flex';
+    contentContainer.style.flexDirection = 'column';
+    contentContainer.style.alignItems = 'center';
+    contentContainer.style.justifyContent = 'center';
+    contentContainer.style.width = '100%';
+    contentContainer.style.height = '100%'; // 充满父级以便内容居中
+    overlay.appendChild(contentContainer);
+
+
+    const showLoading = (text) => {
+        contentContainer.innerHTML = '';
+        contentContainer.appendChild(createLoader(text));
+    };
+
+    showLoading('正在获取存档列表...');
+    target.appendChild(overlay);
+
+    try {
+        const saves = await window.EJS_getSelectSave();
+        contentContainer.innerHTML = '';
+
+        if (!saves || saves.length === 0) {
+            const msg = document.createElement('div');
+            msg.innerText = '暂无存档记录';
+            msg.style.marginBottom = '20px';
+            contentContainer.appendChild(msg);
+        } else {
+            const title = document.createElement('h2');
+            title.innerText = '请选择存档';
+            title.style.marginBottom = '20px';
+            contentContainer.appendChild(title);
+
+            const list = document.createElement('ul');
+            list.style.listStyle = 'none';
+            list.style.padding = '0';
+            list.style.margin = '0';
+            list.style.width = '300px';
+            list.style.maxHeight = '60%';
+            list.style.overflowY = 'auto';
+            list.style.backgroundColor = '#333';
+            list.style.borderRadius = '8px';
+            
+            saves.forEach(save => {
+                const item = document.createElement('li');
+                item.innerText = save.desc;
+                item.style.padding = '15px';
+                item.style.borderBottom = '1px solid #444';
+                item.style.cursor = 'pointer';
+                item.onmouseover = () => item.style.backgroundColor = '#555';
+                item.onmouseout = () => item.style.backgroundColor = '#333';
+                
+                item.onclick = async () => {
+                    showLoading('正在读取存档，请稍候...');
+                    
+                    // 给浏览器渲染 Loading 动画的时间，防止同步任务阻塞 UI
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    
+                    if (typeof window.EJS_loadSave === 'function') {
+                        try {
+                            await window.EJS_loadSave(save.id);
+                        } catch (e) {
+                            console.error("加载存档失败", e);
+                            alert("加载存档失败，请重试");
+                        }
+                    }
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                };
+                list.appendChild(item);
+            });
+            contentContainer.appendChild(list);
+        }
+
+        const closeBtn = document.createElement('button');
+        closeBtn.innerText = '取消';
+        closeBtn.style.marginTop = '20px';
+        closeBtn.style.padding = '10px 20px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.backgroundColor = '#444';
+        closeBtn.style.color = '#fff';
+        closeBtn.style.border = 'none';
+        closeBtn.style.borderRadius = '4px';
+        closeBtn.onclick = () => {
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        };
+        contentContainer.appendChild(closeBtn);
+
+    } catch (err) {
+        showLoading('获取列表失败: ' + err.message);
+        const closeBtn = document.createElement('button');
+        closeBtn.innerText = '关闭';
+        closeBtn.style.marginTop = '20px';
+        closeBtn.onclick = () => { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+        contentContainer.appendChild(closeBtn);
+    }
 };
 
