@@ -205,7 +205,7 @@ class EmulatorJS {
         this.ejs_version = "4.2.1";
         this.extensions = [];
         this.initControlVars();
-        window.EJS_DEBUG_XX = true
+        // window.EJS_DEBUG_XX = true
         this.debug = (window.EJS_DEBUG_XX === true);
         if (this.debug || (window.location && ['localhost', '127.0.0.1'].includes(location.hostname))) this.checkForUpdates();
         this.netplayEnabled = (window.EJS_DEBUG_XX === true) && (window.EJS_EXPERIMENTAL_NETPLAY === true);
@@ -1183,7 +1183,9 @@ class EmulatorJS {
                 this.Module.AL.currentCtx.sources.forEach(ctx => {
                     state = ctx.gain.context.state;
                 });
-                if (state !== "suspended") break;
+                if (state !== "suspended") {
+                    break;
+                }
                 if (!popup) {
                     popup = this.createPopup("", {});
                     const button = this.createElement("button");
@@ -1198,6 +1200,9 @@ class EmulatorJS {
                 await sleep(10);
             }
             if (popup) this.closePopup();
+            if(window.AutoFull){
+                this.toggleFullscreen(true);
+            }
         })();
     }
     bindListeners() {
